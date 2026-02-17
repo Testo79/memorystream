@@ -2,12 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initDatabase } from './database.js';
 import placesRouter from './routes/places.js';
 import storiesRouter from './routes/stories.js';
 
 // Load environment variables
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -39,6 +44,17 @@ app.use('/api/stories', storiesRouter);
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'MemoryStream API is running' });
 });
+
+// Serve frontend build in production (single-service deploy)
+if (process.env.NODE_ENV === 'production') {
+    const distPath = path.join(__dirname, '..', 'frontend', 'dist');
+    app.use(express.static(distPath));
+
+    // SPA fallback (do not catch /api/*)
+    app.get(/^\/(?!api).*/, (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+    });
+}
 
 // 404 handler
 app.use((req, res) => {

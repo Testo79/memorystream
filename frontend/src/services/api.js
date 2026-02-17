@@ -1,7 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: '/api', // Vite proxy will handle routing to backend
+    // Dev: Vite proxy handles /api → backend
+    // Prod (single-service): backend serves frontend, so same-origin /api works
+    // Prod (split deploy): set VITE_API_BASE_URL=https://<backend-host>/api
+    baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
 });
 
 // Fetch places within bounding box
