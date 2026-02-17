@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prototypes Figma — MemoryStream</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .bg-gradient-blue { background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); }
+        .bg-gradient-violet { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .bg-gradient-red { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .bg-card { background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); }
+        
+        .map-bg {
+            background-image: url('https://www.google.com/maps/d/u/0/thumbnail?mid=1_57vI9F9Z9zI6-V9t_4_tM5Y8iY&ll=48.8584%2C2.2945&z=15');
+            background-size: cover;
+            background-position: center;
+        }
+
+        /* Custom scrollbar */
+        .drawer-content::-webkit-scrollbar { width: 6px; }
+        .drawer-content::-webkit-scrollbar-track { background: #f1f1f1; }
+        .drawer-content::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-900 overflow-hidden h-screen flex flex-col">
+
+    <!-- Sélecteur de Maquettes (Barre d'outils) -->
+    <nav class="bg-white border-b border-slate-200 p-2 flex gap-2 overflow-x-auto whitespace-nowrap z-50">
+        <button onclick="setView('main')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">1. Carte</button>
+        <button onclick="setView('drawer-list')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">2. Liste Histoires</button>
+        <button onclick="setView('detail')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">3. Détail</button>
+        <button onclick="setView('modal-place')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">4. Form Lieu</button>
+        <button onclick="setView('form-story')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">5. Form Histoire</button>
+        <button onclick="setView('empty')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">6. État Vide</button>
+        <button onclick="setView('creation-mode')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">7. Mode Création</button>
+        <button onclick="setView('mobile')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-medium transition">8. Mobile</button>
+    </nav>
+
+    <!-- Zone de rendu de la Maquette -->
+    <main id="preview-container" class="flex-1 relative bg-slate-200 flex items-center justify-center overflow-auto">
+        
+        <!-- ÉCRAN PRINCIPAL (Container par défaut) -->
+        <div id="mockup-frame" class="relative w-full h-full bg-white shadow-2xl transition-all duration-300">
+            
+            <!-- Fond Carte (Placeholder) -->
+            <div class="absolute inset-0 map-bg opacity-40"></div>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                 <!-- Pin Example -->
+                 <div class="relative group cursor-pointer pointer-events-auto">
+                    <svg class="w-10 h-10 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white px-3 py-1 rounded shadow-lg border border-slate-200 whitespace-nowrap">
+                        <p class="font-bold text-sm">Tour Eiffel</p>
+                        <p class="text-xs text-slate-500 text-center">3 histoires</p>
+                    </div>
+                 </div>
+            </div>
+
+            <!-- Boutons UI Flottants -->
+            <div id="ui-overlay" class="absolute inset-0 p-6 pointer-events-none">
+                <div class="flex justify-between w-full">
+                    <!-- Bouton Créer -->
+                    <button id="btn-create" class="pointer-events-auto px-6 py-3 bg-gradient-blue text-white font-semibold rounded-full shadow-lg hover:scale-105 transition transform">
+                        + Créer un lieu
+                    </button>
+                    <!-- Bouton Geoloc -->
+                    <button class="pointer-events-auto px-6 py-3 bg-gradient-violet text-white font-semibold rounded-full shadow-lg hover:scale-105 transition transform">
+                        📍 Me localiser
+                    </button>
+                </div>
+            </div>
+
+            <!-- DRAWER (Caché par défaut) -->
+            <div id="drawer" class="hidden absolute top-0 right-0 w-[450px] h-full bg-white shadow-[-4px_0_20px_rgba(0,0,0,0.15)] flex flex-col z-40">
+                <div id="drawer-header" class="bg-gradient-violet p-6 text-white flex justify-between items-center">
+                    <h2 id="drawer-title" class="text-2xl font-bold">Tour Eiffel</h2>
+                    <button onclick="hideDrawer()" class="w-9 h-9 flex items-center justify-center bg-white/20 rounded-full hover:bg-white/30 transition">✕</button>
+                </div>
+                <div id="drawer-content" class="flex-1 p-6 overflow-y-auto drawer-content">
+                    <!-- Content injected here -->
+                </div>
+            </div>
+
+            <!-- MODAL (Caché par défaut) -->
+            <div id="modal-overlay" class="hidden absolute inset-0 bg-black/30 flex items-center justify-center z-50">
+                <div id="modal-content" class="bg-white w-[400px] rounded-xl shadow-xl p-6">
+                    <!-- Modal content injected here -->
+                </div>
+            </div>
+
+            <!-- TOAST (Caché par défaut) -->
+            <div id="toast" class="hidden absolute bottom-8 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-6 py-3 rounded-lg shadow-xl font-semibold flex items-center gap-2 animate-bounce">
+                ✅ Lieu créé avec succès !
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const views = {
+            main: () => {
+                resetUI();
+            },
+            'drawer-list': () => {
+                resetUI();
+                showDrawer('Tour Eiffel', `
+                    <div class="flex justify-between items-center mb-6">
+                        <span class="text-slate-500">3 histoires à découvrir</span>
+                        <button class="px-4 py-2 bg-[#4a90e2] text-white rounded-lg text-sm font-semibold hover:bg-[#357abd] transition">+ Ajouter une histoire</button>
+                    </div>
+                    <div class="space-y-4">
+                        ${[1,2,3].map(i => `
+                            <div class="bg-card border border-slate-200 p-5 rounded-xl">
+                                <h3 class="font-semibold text-slate-800 text-lg">Un moment inoubliable ${i}</h3>
+                                <p class="text-sm text-slate-500 mt-1">14 Juillet 2023</p>
+                                <div class="mt-4 text-right">
+                                    <button class="text-[#667eea] font-semibold text-sm hover:underline">Lire l’histoire →</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `);
+            },
+            detail: () => {
+                resetUI();
+                showDrawer('Détails de l’histoire', `
+                    <button class="mb-6 px-4 py-2 border border-slate-200 text-[#667eea] rounded-lg font-semibold text-sm hover:bg-slate-50 transition">← Retour aux histoires</button>
+                    <div class="bg-white border border-slate-200 rounded-xl p-6">
+                        <p class="text-xs text-slate-500 italic mb-4 pb-4 border-b border-slate-100">Publié le 14 Juillet 2023</p>
+                        <p class="text-slate-700 leading-relaxed">
+                            C'était un soir d'été magnifique. Nous étions assis sur le Champ de Mars, attendant le feu d'artifice. 
+                            L'ambiance était électrique, des milliers de personnes partageaient ce moment de communion nationale...
+                        </p>
+                    </div>
+                `);
+            },
+            'modal-place': () => {
+                resetUI();
+                showModal(`
+                    <h3 class="text-xl font-bold text-slate-800">Créer un nouveau lieu</h3>
+                    <p class="text-sm text-slate-500 mb-6">📍 48.858370, 2.294481</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-600 mb-1">Nom du lieu *</label>
+                            <input type="text" placeholder="Ex: Place de la République" class="w-full px-4 py-3 rounded-lg border-2 border-slate-200 focus:border-[#4a90e2] outline-none transition">
+                        </div>
+                        <div class="flex justify-end gap-3 pt-4">
+                            <button onclick="hideModal()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold">Annuler</button>
+                            <button class="px-4 py-2 bg-[#4a90e2] text-white rounded-lg font-semibold">Créer le lieu</button>
+                        </div>
+                    </div>
+                `);
+            },
+            'form-story': () => {
+                resetUI();
+                showDrawer('Ajouter une histoire', `
+                    <h3 class="text-xl font-bold text-slate-800 mb-6">Ajouter une histoire à Tour Eiffel</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-600 mb-1">Titre *</label>
+                            <input type="text" placeholder="Ex: Mon premier jour ici" class="w-full px-4 py-3 rounded-lg border-2 border-slate-200 focus:border-[#4a90e2] outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-600 mb-1">Histoire *</label>
+                            <textarea rows="6" placeholder="Racontez votre histoire..." class="w-full px-4 py-3 rounded-lg border-2 border-slate-200 focus:border-[#4a90e2] outline-none transition"></textarea>
+                        </div>
+                        <div class="flex justify-end gap-3 pt-4">
+                            <button class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold">Annuler</button>
+                            <button class="px-4 py-2 bg-[#4a90e2] text-white rounded-lg font-semibold">Créer l’histoire</button>
+                        </div>
+                    </div>
+                `);
+            },
+            empty: () => {
+                resetUI();
+                showDrawer('Jardin du Luxembourg', `
+                    <div class="h-64 flex flex-col items-center justify-center text-center px-4">
+                        <p class="text-slate-400 mb-4">Aucune histoire disponible pour ce lieu.</p>
+                        <button class="px-4 py-2 bg-[#4a90e2] text-white rounded-lg font-semibold shadow-md">+ Ajouter la première histoire</button>
+                    </div>
+                `);
+            },
+            'creation-mode': () => {
+                resetUI();
+                document.getElementById('btn-create').innerHTML = '✕ Annuler';
+                document.getElementById('btn-create').className = 'pointer-events-auto px-6 py-3 bg-gradient-red text-white font-semibold rounded-full shadow-lg transition transform';
+                document.getElementById('toast').classList.remove('hidden');
+                setTimeout(() => document.getElementById('toast').classList.add('hidden'), 3000);
+            },
+            mobile: () => {
+                resetUI();
+                const frame = document.getElementById('mockup-frame');
+                frame.style.width = '375px';
+                frame.style.height = '812px';
+                frame.classList.add('rounded-[40px]', 'border-[8px]', 'border-slate-800');
+                
+                // Adapter les boutons
+                document.getElementById('btn-create').classList.add('text-xs', 'px-4', 'py-2');
+                const geoloc = document.querySelector('button.bg-gradient-violet');
+                geoloc.classList.add('text-xs', 'px-4', 'py-2');
+                
+                // Adapter le drawer si ouvert
+                const dr = document.getElementById('drawer');
+                dr.style.width = '100%';
+            }
+        };
+
+        function setView(viewName) {
+            views[viewName]();
+        }
+
+        function resetUI() {
+            const frame = document.getElementById('mockup-frame');
+            frame.style.width = '100%';
+            frame.style.height = '100%';
+            frame.className = "relative w-full h-full bg-white shadow-2xl transition-all duration-300";
+            
+            document.getElementById('drawer').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.getElementById('toast').classList.add('hidden');
+            
+            document.getElementById('btn-create').innerHTML = '+ Créer un lieu';
+            document.getElementById('btn-create').className = 'pointer-events-auto px-6 py-3 bg-gradient-blue text-white font-semibold rounded-full shadow-lg hover:scale-105 transition transform';
+        }
+
+        function showDrawer(title, content) {
+            const dr = document.getElementById('drawer');
+            dr.classList.remove('hidden');
+            document.getElementById('drawer-title').innerText = title;
+            document.getElementById('drawer-content').innerHTML = content;
+        }
+
+        function hideDrawer() {
+            document.getElementById('drawer').classList.add('hidden');
+        }
+
+        function showModal(content) {
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            document.getElementById('modal-content').innerHTML = content;
+        }
+
+        function hideModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        // Init
+        window.onload = () => setView('main');
+    </script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+.map-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.leaflet-map {
+    z-index: 1;
+}
+
+.marker-popup {
+    text-align: center;
+}
+
+.marker-popup strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+    color: #1a1a1a;
+}
+
+.marker-popup p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #666;
+}
+
+/* Create Place Button */
+.create-place-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.create-place-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.5);
+}
+
+.create-place-btn.active {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.create-place-btn.active:hover {
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+}
+
+/* Create Place Modal */
+.create-place-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+}
+
+.create-place-modal > * {
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Geolocation Button */
+.geolocation-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.geolocation-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.geolocation-btn:active {
+    transform: translateY(0);
+}
+
+.geolocation-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.geolocation-btn.loading {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Toast Notification */
+.toast {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.3s ease;
+}
+
+.toast-success {
+    background: #10b981;
+    color: white;
+}
+
+.toast-error {
+    background: #ef4444;
+    color: white;
+}
+
+.toast-info {
+    background: #3b82f6;
+    color: white;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .create-place-btn {
+        top: 10px;
+        left: 10px;
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+
+    .geolocation-btn {
+        top: 10px;
+        right: 10px;
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+
+    .toast {
+        bottom: 20px;
+        max-width: 90%;
+        font-size: 0.875rem;
+    }
+
+    .create-place-modal {
+        padding: 20px;
+    }
+}
