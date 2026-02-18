@@ -10,6 +10,15 @@ function StoryList({ stories, placeName, onStoryClick, onAddStory }) {
         });
     };
 
+    const getAuthorLabel = (story) => {
+        const first = story.authorFirstName?.trim();
+        const last = story.authorLastName?.trim();
+        if (first || last) {
+            return `${first || ''} ${last || ''}`.trim();
+        }
+        return 'Auteur inconnu';
+    };
+
     return (
         <div className="story-list">
             <div className="story-list-header">
@@ -41,7 +50,9 @@ function StoryList({ stories, placeName, onStoryClick, onAddStory }) {
                             onClick={() => onStoryClick(story)}
                         >
                             <h3 className="story-title">{story.title}</h3>
-                            <p className="story-date">{formatDate(story.createdAt)}</p>
+                            <p className="story-date">
+                                {formatDate(story.createdAt)} · {getAuthorLabel(story)}
+                            </p>
                             <div className="story-card-footer">
                                 <span className="read-more">Lire l'histoire →</span>
                             </div>

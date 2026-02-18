@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../database.js';
-import { validateBoundingBox } from '../middleware/validation.js';
+import { validateBoundingBox, validateCreatePlaceBody } from '../middleware/validation.js';
+import { requireAuth } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -42,10 +43,18 @@ router.get('/:placeId/stories', (req, res) => {
 
     // Use prepared statement to prevent SQL injection
     const query = `
-    SELECT id, title, createdAt
-    FROM stories
-    WHERE placeId = ?
-    ORDER BY createdAt DESC
+    SELECT 
+      s.id,
+      s.title,
+      s.createdAt,
+      s.userId,
+      u.email as authorEmail,
+      u.firstName as authorFirstName,
+      u.lastName as authorLastName
+    FROM stories s
+    LEFT JOIN users u ON u.id = s.userId
+    WHERE s.placeId = ?
+    ORDER BY s.createdAt DESC
   `;
 
     db.all(query, [placeId], (err, rows) => {
@@ -62,35 +71,13 @@ router.get('/:placeId/stories', (req, res) => {
 });
 
 // POST /api/places - Create a new place
-router.post('/', (req, res) => {
+router.post('/', requireAuth, validateCreatePlaceBody, (req, res) => {
     const { name, lat, lng } = req.body;
 
-    // Validation
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        return res.status(400).json({
-            error: 'Validation error',
-            message: 'Place name is required'
-        });
-    }
-
-    if (typeof lat !== 'number' || lat < -90 || lat > 90) {
-        return res.status(400).json({
-            error: 'Validation error',
-            message: 'Valid latitude (-90 to 90) is required'
-        });
-    }
-
-    if (typeof lng !== 'number' || lng < -180 || lng > 180) {
-        return res.status(400).json({
-            error: 'Validation error',
-            message: 'Valid longitude (-180 to 180) is required'
-        });
-    }
-
     const placeId = uuidv4();
-    const query = 'INSERT INTO places (id, name, lat, lng) VALUES (?, ?, ?, ?)';
+    const query = 'INSERT INTO places (id, name, lat, lng, createdByUserId) VALUES (?, ?, ?, ?, ?)';
 
-    db.run(query, [placeId, name.trim(), lat, lng], function(err) {
+    db.run(query, [placeId, name, lat, lng, req.user.id], function(err) {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).json({
@@ -101,7 +88,7 @@ router.post('/', (req, res) => {
 
         res.status(201).json({
             id: placeId,
-            name: name.trim(),
+            name,
             lat,
             lng,
             storyCount: 0

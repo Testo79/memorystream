@@ -74,7 +74,7 @@ function MapCenterController({ center, zoom }) {
     return null;
 }
 
-function Map({ onPlaceClick }) {
+function Map({ onPlaceClick, isAuthenticated, onRequireAuth }) {
     const [places, setPlaces] = useState([]);
     const [bounds, setBounds] = useState(null);
     const [mapCenter, setMapCenter] = useState(null);
@@ -133,6 +133,46 @@ function Map({ onPlaceClick }) {
 
     const handleGeolocationClick = () => {
         getCurrentPosition();
+    };
+
+    const handleAddStoryHere = async () => {
+        if (!isAuthenticated) {
+            showToast('🔒 Connectez-vous pour ajouter une histoire ici', 'info');
+            onRequireAuth?.();
+            return;
+        }
+
+        if (!position) {
+            showToast('Active la localisation puis réessaie.', 'info');
+            getCurrentPosition();
+            return;
+        }
+
+        try {
+            const newPlace = await createPlace({
+                name: 'Lieu près de vous',
+                lat: position.lat,
+                lng: position.lng
+            });
+
+            // Rafraîchir la liste des lieux autour si on a les bounds
+            if (bounds) {
+                const boundsData = {
+                    minLat: bounds.getSouth(),
+                    minLng: bounds.getWest(),
+                    maxLat: bounds.getNorth(),
+                    maxLng: bounds.getEast()
+                };
+                const data = await fetchPlaces(boundsData);
+                setPlaces(data);
+            }
+
+            showToast('✅ Lieu créé à votre position. Vous pouvez ajouter une histoire.', 'success');
+            onPlaceClick?.(newPlace);
+        } catch (err) {
+            console.error('Error creating place at current position:', err);
+            showToast('Erreur lors de la création du lieu à votre position.', 'error');
+        }
     };
 
     const handleMapClick = (lat, lng) => {
@@ -232,6 +272,11 @@ function Map({ onPlaceClick }) {
             <button
                 className={`create-place-btn ${createMode ? 'active' : ''}`}
                 onClick={() => {
+                    if (!createMode && !isAuthenticated) {
+                        showToast('🔒 Connectez-vous pour créer un lieu', 'info');
+                        onRequireAuth?.();
+                        return;
+                    }
                     setCreateMode(!createMode);
                     setCreateLocation(null);
                     showToast(createMode ? 'Mode consultation activé' : 'Mode création activé - Cliquez sur la carte', 'info');
@@ -249,6 +294,15 @@ function Map({ onPlaceClick }) {
                 title="Me localiser"
             >
                 📍 {loading ? 'Localisation...' : 'Me localiser'}
+            </button>
+
+            {/* Add Story At Current Location Button */}
+            <button
+                className="story-here-btn"
+                onClick={handleAddStoryHere}
+                title="Créer un lieu à ma position puis ajouter une histoire"
+            >
+                ✨ Ajouter une histoire ici
             </button>
 
             {/* Create Place Form Modal */}

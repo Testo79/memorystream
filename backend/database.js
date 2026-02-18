@@ -1,5 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 
 const db = new sqlite3.Database('./memorystream.db', (err) => {
   if (err) {
@@ -12,53 +13,166 @@ const db = new sqlite3.Database('./memorystream.db', (err) => {
 // Enable foreign keys
 db.run('PRAGMA foreign_keys = ON');
 
+// Small async helpers for sqlite3 callbacks
+const runAsync = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
+  });
+
+const getAsync = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+
+const allAsync = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+
+const hasColumn = async (tableName, columnName) => {
+  const cols = await allAsync(`PRAGMA table_info(${tableName})`);
+  return cols.some((c) => c.name === columnName);
+};
+
+const ensureUsersTable = async () => {
+  await runAsync(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      passwordHash TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      firstName TEXT,
+      lastName TEXT
+    )
+  `);
+
+  // Migrations for existing databases that created users without names
+  const hasFirstName = await hasColumn('users', 'firstName');
+  if (!hasFirstName) {
+    await runAsync('ALTER TABLE users ADD COLUMN firstName TEXT');
+  }
+  const hasLastName = await hasColumn('users', 'lastName');
+  if (!hasLastName) {
+    await runAsync('ALTER TABLE users ADD COLUMN lastName TEXT');
+  }
+};
+
+const ensureDemoUser = async () => {
+  // Password is only used for local demo data; auth endpoints will create real users.
+  const demoEmail = 'demo@memorystream.local';
+  const existing = await getAsync('SELECT id FROM users WHERE email = ?', [demoEmail]);
+  if (existing?.id) return existing.id;
+
+  const id = uuidv4();
+  const createdAt = new Date().toISOString();
+  // Demo password (optional): Demo12345!
+  const passwordHash = await bcrypt.hash('Demo12345!', 12);
+  await runAsync(
+    'INSERT INTO users (id, email, passwordHash, createdAt, firstName, lastName) VALUES (?, ?, ?, ?, ?, ?)',
+    [id, demoEmail, passwordHash, createdAt, 'Demo', 'User']
+  );
+  return id;
+};
+
+const ensurePlacesCreatedByColumn = async () => {
+  const has = await hasColumn('places', 'createdByUserId');
+  if (!has) {
+    await runAsync('ALTER TABLE places ADD COLUMN createdByUserId TEXT');
+  }
+};
+
+const migrateStoriesAddUserId = async (demoUserId) => {
+  const hasUserId = await hasColumn('stories', 'userId');
+  if (hasUserId) return;
+
+  console.log('🛠️ Migrating stories table: adding userId + FK constraint...');
+
+  await runAsync(`
+    CREATE TABLE IF NOT EXISTS stories_new (
+      id TEXT PRIMARY KEY,
+      placeId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (placeId) REFERENCES places(id) ON DELETE CASCADE,
+      FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await runAsync(
+    `
+      INSERT INTO stories_new (id, placeId, userId, title, content, createdAt)
+      SELECT id, placeId, ?, title, content, createdAt
+      FROM stories
+    `,
+    [demoUserId]
+  );
+
+  await runAsync('DROP TABLE stories');
+  await runAsync('ALTER TABLE stories_new RENAME TO stories');
+
+  console.log('✅ Migration stories.userId completed');
+};
+
 // Initialize database schema
 const initDatabase = () => {
   return new Promise((resolve, reject) => {
     db.serialize(() => {
-      // Create places table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS places (
-          id TEXT PRIMARY KEY,
-          name TEXT,
-          lat REAL NOT NULL,
-          lng REAL NOT NULL
-        )
-      `, (err) => {
-        if (err) reject(err);
-      });
+      (async () => {
+        // 1) Core tables
+        await runAsync(`
+          CREATE TABLE IF NOT EXISTS places (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            createdByUserId TEXT
+          )
+        `);
 
-      // Create stories table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS stories (
-          id TEXT PRIMARY KEY,
-          placeId TEXT NOT NULL,
-          title TEXT NOT NULL,
-          content TEXT NOT NULL,
-          createdAt TEXT NOT NULL,
-          FOREIGN KEY (placeId) REFERENCES places(id) ON DELETE CASCADE
-        )
-      `, (err) => {
-        if (err) reject(err);
-      });
+        await ensureUsersTable();
 
-      // Check if database is empty and seed if needed
-      db.get('SELECT COUNT(*) as count FROM places', (err, row) => {
-        if (err) {
-          reject(err);
-        } else if (row.count === 0) {
+        // Create stories table with userId (fresh installs)
+        await runAsync(`
+          CREATE TABLE IF NOT EXISTS stories (
+            id TEXT PRIMARY KEY,
+            placeId TEXT NOT NULL,
+            userId TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            createdAt TEXT NOT NULL,
+            FOREIGN KEY (placeId) REFERENCES places(id) ON DELETE CASCADE,
+            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+          )
+        `);
+
+        // 2) Migrations for existing DBs
+        const demoUserId = await ensureDemoUser();
+        await ensurePlacesCreatedByColumn();
+        await migrateStoriesAddUserId(demoUserId);
+
+        // 3) Seed if needed
+        const row = await getAsync('SELECT COUNT(*) as count FROM places');
+        if (row?.count === 0) {
           console.log('📦 Database is empty. Generating seed data...');
-          seedDatabase()
-            .then(() => {
-              console.log('✅ Seed data generated successfully');
-              resolve();
-            })
-            .catch(reject);
+          await seedDatabase(demoUserId);
+          console.log('✅ Seed data generated successfully');
         } else {
           console.log(`✅ Database already contains ${row.count} places. Skipping seed.`);
-          resolve();
         }
-      });
+
+        resolve();
+      })().catch(reject);
     });
   });
 };
@@ -112,7 +226,7 @@ const generateRandomStory = (placeName, cityName) => {
 };
 
 // Seed database with demo data (only if empty)
-const seedDatabase = () => {
+const seedDatabase = (demoUserId) => {
   return new Promise((resolve, reject) => {
     // Places across France - major cities and landmarks
     const places = [
@@ -201,14 +315,14 @@ const seedDatabase = () => {
     ];
 
     // Insert places
-    const insertPlace = db.prepare('INSERT INTO places (id, name, lat, lng) VALUES (?, ?, ?, ?)');
+    const insertPlace = db.prepare('INSERT INTO places (id, name, lat, lng, createdByUserId) VALUES (?, ?, ?, ?, ?)');
     places.forEach(place => {
-      insertPlace.run(place.id, place.name, place.lat, place.lng);
+      insertPlace.run(place.id, place.name, place.lat, place.lng, demoUserId || null);
     });
     insertPlace.finalize();
 
     // Insert stories - generate 2-5 random stories per place
-    const insertStory = db.prepare('INSERT INTO stories (id, placeId, title, content, createdAt) VALUES (?, ?, ?, ?, ?)');
+    const insertStory = db.prepare('INSERT INTO stories (id, placeId, userId, title, content, createdAt) VALUES (?, ?, ?, ?, ?, ?)');
     
     let storyCount = 0;
     places.forEach(place => {
@@ -220,7 +334,7 @@ const seedDatabase = () => {
         const daysAgo = Math.floor(Math.random() * 1825); // 5 years
         const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
         
-        insertStory.run(storyId, place.id, story.title, story.content, createdAt);
+        insertStory.run(storyId, place.id, demoUserId, story.title, story.content, createdAt);
         storyCount++;
       }
     });

@@ -3,15 +3,16 @@ import gsap from 'gsap';
 import StoryList from './StoryList';
 import StoryDetail from './StoryDetail';
 import CreateStoryForm from './CreateStoryForm';
-import { fetchStoriesForPlace, fetchStory } from '../services/api';
+import { deleteStory, fetchStoriesForPlace, fetchStory } from '../services/api';
 import './Drawer.css';
 
-function Drawer({ isOpen, selectedPlace, selectedStory, onClose, onStoryClick, onBackToList, onPlaceCreated }) {
+function Drawer({ isOpen, selectedPlace, selectedStory, onClose, onStoryClick, onBackToList, isAuthenticated, currentUserId, onRequireAuth }) {
     const drawerRef = useRef(null);
     const [stories, setStories] = useState([]);
     const [fullStory, setFullStory] = useState(null);
     const [loading, setLoading] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [toast, setToast] = useState(null);
 
     // GSAP Animation for drawer open/close
     useEffect(() => {
@@ -59,19 +60,62 @@ function Drawer({ isOpen, selectedPlace, selectedStory, onClose, onStoryClick, o
         }
     }, [isOpen]);
 
+    const showToast = (message, type = 'info') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
+
+    const reloadStories = async () => {
+        if (!selectedPlace) return;
+        setLoading(true);
+        try {
+            const data = await fetchStoriesForPlace(selectedPlace.id);
+            setStories(data);
+        } catch (error) {
+            console.error('Error loading stories:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleStoryCreated = async () => {
         setShowCreateForm(false);
-        // Reload stories
-        if (selectedPlace) {
-            setLoading(true);
-            try {
-                const data = await fetchStoriesForPlace(selectedPlace.id);
-                setStories(data);
-            } catch (error) {
-                console.error('Error loading stories:', error);
-            } finally {
-                setLoading(false);
-            }
+        await reloadStories();
+    };
+
+    const handleAddStory = () => {
+        if (!isAuthenticated) {
+            showToast('🔒 Connectez-vous pour ajouter une histoire', 'info');
+            onRequireAuth?.();
+            return;
+        }
+        setShowCreateForm(true);
+    };
+
+    const canDeleteCurrentStory = () => {
+        if (!isAuthenticated || !currentUserId || !fullStory) return false;
+        return fullStory.userId === currentUserId;
+    };
+
+    const handleDeleteStory = async () => {
+        if (!fullStory) return;
+        if (!canDeleteCurrentStory()) {
+            showToast('Vous ne pouvez supprimer que vos propres histoires.', 'error');
+            return;
+        }
+        const confirmed = window.confirm('Supprimer cette histoire ? Cette action est définitive.');
+        if (!confirmed) return;
+
+        try {
+            await deleteStory(fullStory.id);
+            showToast('Histoire supprimée.', 'success');
+            // Revenir à la liste
+            onBackToList();
+            setFullStory(null);
+            await reloadStories();
+        } catch (error) {
+            console.error('Error deleting story:', error);
+            showToast('Erreur lors de la suppression de l’histoire.', 'error');
         }
     };
 
@@ -123,17 +167,28 @@ function Drawer({ isOpen, selectedPlace, selectedStory, onClose, onStoryClick, o
                             onCancel={() => setShowCreateForm(false)}
                         />
                     ) : fullStory ? (
-                        <StoryDetail story={fullStory} onBack={onBackToList} />
+                        <StoryDetail
+                            story={fullStory}
+                            onBack={onBackToList}
+                            onDelete={canDeleteCurrentStory() ? handleDeleteStory : undefined}
+                        />
                     ) : (
                         <StoryList
                             stories={stories}
                             placeName={selectedPlace?.name}
                             onStoryClick={onStoryClick}
-                            onAddStory={() => setShowCreateForm(true)}
+                            onAddStory={handleAddStory}
                         />
                     )}
                 </div>
             </div>
+
+            {/* Toast Notification (uses global .toast styles from Map.css) */}
+            {toast && (
+                <div className={`toast toast-${toast.type}`}>
+                    {toast.message}
+                </div>
+            )}
         </>
     );
 }

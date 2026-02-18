@@ -61,3 +61,64 @@ export const validateBoundingBox = (req, res, next) => {
     req.bbox = bbox;
     next();
 };
+
+const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
+
+export const validateCreatePlaceBody = (req, res, next) => {
+    const { name, lat, lng } = req.body || {};
+
+    if (!isNonEmptyString(name) || name.trim().length > 200) {
+        return res.status(400).json({
+            error: 'Validation error',
+            message: 'Place name is required (max 200 chars)'
+        });
+    }
+
+    if (typeof lat !== 'number' || Number.isNaN(lat) || lat < -90 || lat > 90) {
+        return res.status(400).json({
+            error: 'Validation error',
+            message: 'Valid latitude (-90 to 90) is required'
+        });
+    }
+
+    if (typeof lng !== 'number' || Number.isNaN(lng) || lng < -180 || lng > 180) {
+        return res.status(400).json({
+            error: 'Validation error',
+            message: 'Valid longitude (-180 to 180) is required'
+        });
+    }
+
+    req.body.name = name.trim();
+    next();
+};
+
+export const validateCreateStoryBody = (req, res, next) => {
+    const { placeId, title, content } = req.body || {};
+
+    if (!isNonEmptyString(placeId) || placeId.trim().length > 100) {
+        return res.status(400).json({
+            error: 'Validation error',
+            message: 'Place ID is required'
+        });
+    }
+
+    if (!isNonEmptyString(title) || title.trim().length > 200) {
+        return res.status(400).json({
+            error: 'Validation error',
+            message: 'Story title is required (max 200 chars)'
+        });
+    }
+
+    // Pragmatic size limit to avoid very large payloads
+    if (!isNonEmptyString(content) || content.trim().length > 5000) {
+        return res.status(400).json({
+            error: 'Validation error',
+            message: 'Story content is required (max 5000 chars)'
+        });
+    }
+
+    req.body.placeId = placeId.trim();
+    req.body.title = title.trim();
+    req.body.content = content.trim();
+    next();
+};

@@ -13,6 +13,7 @@ Dans un terminal :
 ```bash
 cd c:\Users\testo\Desktop\memorystream\backend
 npm install
+$env:JWT_SECRET="dev_secret_change_me"
 npm run dev
 ```
 
@@ -51,6 +52,7 @@ npm run build
 cd c:\Users\testo\Desktop\memorystream\backend
 npm install
 $env:NODE_ENV="production"
+$env:JWT_SECRET="dev_secret_change_me"
 npm start
 ```
 
@@ -79,6 +81,7 @@ Le code est prêt pour un déploiement “monolithique” : **un seul service No
      ```
    - **Environment variables** :
      - `NODE_ENV=production`
+     - `JWT_SECRET=<long_random_secret>`
      - (Render fournit `PORT` automatiquement)
 3. Déploie. L’URL Render affichera directement l’app.
 

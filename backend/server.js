@@ -2,14 +2,29 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase } from './database.js';
 import placesRouter from './routes/places.js';
 import storiesRouter from './routes/stories.js';
+import authRouter from './routes/auth.js';
 
 // Load environment variables
 dotenv.config();
+
+// Ensure a JWT secret exists.
+if (!process.env.JWT_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+        console.error('❌ JWT_SECRET must be set in production.');
+        process.exit(1);
+    } else {
+        // Dev-only: generate an ephemeral secret at startup.
+        process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
+        console.warn('⚠️  No JWT_SECRET set. Generated a temporary secret for development.');
+    }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +33,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Middleware
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
@@ -37,6 +53,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Routes
+app.use('/api/auth', authRouter);
 app.use('/api/places', placesRouter);
 app.use('/api/stories', storiesRouter);
 
@@ -79,6 +96,9 @@ initDatabase()
         app.listen(PORT, () => {
             console.log(`\n🚀 MemoryStream Backend running on http://localhost:${PORT}`);
             console.log(`📍 API endpoints:`);
+            console.log(`   - POST /api/auth/register`);
+            console.log(`   - POST /api/auth/login`);
+            console.log(`   - GET  /api/auth/me`);
             console.log(`   - GET /api/places?minLat=&minLng=&maxLat=&maxLng=`);
             console.log(`   - GET /api/places/:placeId/stories`);
             console.log(`   - GET /api/stories/:storyId`);
